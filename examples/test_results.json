@@ -1,0 +1,114 @@
+[
+  {
+    "test": "offline: bad JSON, then bad format",
+    "pass": true,
+    "seconds": 0.0,
+    "calls": 5,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "statuses": [
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "offline: persistent garbage",
+    "pass": true,
+    "seconds": 0.0,
+    "calls": 4,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "statuses": [
+      "failed",
+      "not_found"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "offline: planner hallucinated id",
+    "pass": true,
+    "seconds": 0.0,
+    "calls": 4,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "statuses": [
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "offline: heading stuffed, dropped",
+    "pass": true,
+    "seconds": 0.0,
+    "calls": 5,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "statuses": [
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "offline: KNOWN FALSE PASS (meaning flip)",
+    "pass": true,
+    "seconds": 0.0,
+    "calls": 18,
+    "in_tokens": 0,
+    "out_tokens": 0,
+    "statuses": [
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "spec example (3 changes)",
+    "pass": true,
+    "seconds": 27.37,
+    "calls": 32,
+    "in_tokens": 41500,
+    "out_tokens": 14075,
+    "statuses": [
+      "applied",
+      "applied",
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "targeted only (no tone change)",
+    "pass": true,
+    "seconds": 6.57,
+    "calls": 5,
+    "in_tokens": 15897,
+    "out_tokens": 601,
+    "statuses": [
+      "applied",
+      "applied"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "change with no target",
+    "pass": true,
+    "seconds": 1.02,
+    "calls": 1,
+    "in_tokens": 13321,
+    "out_tokens": 29,
+    "statuses": [
+      "not_found"
+    ],
+    "failed_checks": []
+  },
+  {
+    "test": "rename across document",
+    "pass": true,
+    "seconds": 28.44,
+    "calls": 5,
+    "in_tokens": 22493,
+    "out_tokens": 3088,
+    "statuses": [
+      "applied"
+    ],
+    "failed_checks": []
+  }
+]

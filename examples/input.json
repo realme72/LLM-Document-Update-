@@ -1,0 +1,4 @@
+{
+  "sourceDocument": "# Plans\n\nOur Basic plan is $10/month and it's super easy to start.\n\n## Legacy API\n\nThe old v1 API still works but don't use it.\n",
+  "changes": ["Update the pricing section to reflect a 10% increase across all tiers", "Remove the paragraph about the legacy API", "Make the tone throughout more formal"]
+}

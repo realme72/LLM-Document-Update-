@@ -1,0 +1,9 @@
+openai>=1.60
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+pydantic>=2.6
+python-dotenv>=1.0
+pymupdf>=1.24
+pymupdf4llm>=0.0.17
+reportlab>=4.0

@@ -1,0 +1,15 @@
+{
+  "sourceDocument": "# **Invoice / Payment Agreement**\n\n**Payee:** [Payee name] **Payer:** [Payer name] **Date:** [Date]\n\n## **1. Amount Due**\n\nPayer acknowledges owing Payee the amount below for [describe the goods/services already provided or the underlying obligation — e.g., \"consulting services delivered in March 2026\"], per Invoice #[Number] dated [Invoice date].\n\n### **Invoice Detail**\n\n|**Name**|**Total**||\n|---|---|---|\n|Consulting services|$3,200.00||\n||**Subtotal**|$3,200.00|\n||**Total**|**$3,200.00**|\n\n\n\n## **2. Payment Schedule**\n\n[If paid in one sum: \"The full amount is due by [Date].\" If in installments: list each installment amount and due date — e.g., \"$1,600 due [date], $1,600 due [date].\"]\n\n## **3. Payment Method**\n\nPayer will pay via [accepted methods — e.g., \"ACH, check, or card\"]. [Note any processing fees passed on for a given method — otherwise delete this line.]\n\n## **4. Late Payment**\n\nA payment more than [Number, e.g., 10] days late is subject to a late fee of [Late fee, e.g., $50 or 1.5%] [per month / one-time — specify], to the extent allowed by applicable law.\n\n## **5. Disputes**\n\nPayer must raise any dispute over the amount owed in writing within [Number, e.g., 10] days of this agreement's date; otherwise the amount above is treated as agreed and undisputed.\n\n## **6. Governing Law**\n\nThis agreement is governed by the laws of the State of [State].\n\n## **Signatures**\n\nBy signing below, each party agrees to these terms.\n\n[Payee name] (\"Payee\")\n\nSignature: ________________________ Printed name: ________________ Date: ____________ [Payer name] (\"Payer\") Signature: ________________________ Printed name: ________________ Date: ____________\n\n_This template is a general starting point, not legal advice — customize it and have it reviewed for your situation._\n",
+  "changes": [
+    "Replace [Payee name] throughout the document with Apex Consulting LLC and [Payer name] with Northstar Retail Inc. Keep party names consistent in the agreement and signature sections.",
+    "Set the agreement date to October 23, 2026.",
+    "Replace the goods/services description placeholder with 'consulting services delivered in September 2026'.",
+    "Replace Invoice #[Number] with Invoice #INV-2026-104 and set the invoice date to October 20, 2026.",
+    "Change the Consulting services line-item amount from $3,200.00 to $3,500.00. Update both the subtotal and total to $3,500.00.",
+    "Replace the payment schedule instructions with two installments: $1,750 due November 1, 2026, and $1,750 due November 15, 2026.",
+    "Set the accepted payment methods to ACH or check. Remove the optional processing-fee placeholder because no processing fee applies.",
+    "Specify that payments more than 10 days late incur a late fee of 1.5% per month, to the extent allowed by applicable law.",
+    "Change the dispute notification period from the existing placeholder to 15 days after the agreement date.",
+    "Replace [State] in the governing law clause with California."
+  ]
+}

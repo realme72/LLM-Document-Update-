@@ -1,0 +1,441 @@
+{
+  "blocks": 163,
+  "words": 10537,
+  "changes": [
+    {
+      "index": 0,
+      "change": "Update the pricing section to reflect a 10% increase across all tiers",
+      "status": "applied",
+      "scope": "local",
+      "blocks": [
+        "B75",
+        "B76",
+        "B77",
+        "B78",
+        "B162",
+        "B163"
+      ],
+      "reason": "Pricing details and summary mention prices, must update all.",
+      "errors": [],
+      "sweep": {
+        "stale_values": [
+          "$249",
+          "$29",
+          "$79",
+          "$8"
+        ],
+        "checked_blocks": [
+          "B157"
+        ],
+        "updated_blocks": [
+          "B157"
+        ],
+        "failed_blocks": []
+      }
+    },
+    {
+      "index": 1,
+      "change": "Remove the paragraph about the legacy API",
+      "status": "applied",
+      "scope": "local",
+      "blocks": [
+        "B149"
+      ],
+      "reason": "Legacy API paragraph is only in B149, remove it.",
+      "errors": []
+    },
+    {
+      "index": 2,
+      "change": "Make the tone throughout more formal",
+      "status": "applied",
+      "scope": "global",
+      "blocks": [],
+      "reason": "Tone change affects entire document, global scope.",
+      "errors": []
+    }
+  ],
+  "plan_attempts": 1,
+  "orphan_headings_removed": [
+    "B148"
+  ],
+  "jobs": [
+    {
+      "name": "chunk0",
+      "blocks": 15,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 11
+    },
+    {
+      "name": "chunk1",
+      "blocks": 9,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk2",
+      "blocks": 8,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 6
+    },
+    {
+      "name": "chunk3",
+      "blocks": 8,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk4",
+      "blocks": 8,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk5",
+      "blocks": 8,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk6",
+      "blocks": 8,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 6
+    },
+    {
+      "name": "chunk7",
+      "blocks": 10,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk8",
+      "blocks": 11,
+      "attempts": 3,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 10
+    },
+    {
+      "name": "chunk9",
+      "blocks": 8,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk10",
+      "blocks": 10,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk11",
+      "blocks": 9,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 8
+    },
+    {
+      "name": "chunk12",
+      "blocks": 8,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 7
+    },
+    {
+      "name": "chunk13",
+      "blocks": 9,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 8
+    },
+    {
+      "name": "chunk14",
+      "blocks": 9,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 8
+    },
+    {
+      "name": "chunk15",
+      "blocks": 19,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 12
+    },
+    {
+      "name": "chunk16",
+      "blocks": 6,
+      "attempts": 2,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 5
+    },
+    {
+      "name": "sweep0",
+      "blocks": 1,
+      "attempts": 1,
+      "failed_blocks": [],
+      "dropped_headings": [],
+      "changed_blocks": 1
+    }
+  ],
+  "seconds": 27.37,
+  "usage": {
+    "model": "gpt-4.1-mini",
+    "calls": 32,
+    "prompt_tokens": 41500,
+    "completion_tokens": 14075,
+    "cached_tokens": 23936,
+    "per_call": [
+      {
+        "tag": "plan#1",
+        "prompt_tokens": 13342,
+        "completion_tokens": 103,
+        "cached_tokens": 13184,
+        "seconds": 1.52
+      },
+      {
+        "tag": "chunk5#1",
+        "prompt_tokens": 1131,
+        "completion_tokens": 648,
+        "cached_tokens": 0,
+        "seconds": 5.64
+      },
+      {
+        "tag": "chunk6#1",
+        "prompt_tokens": 1155,
+        "completion_tokens": 591,
+        "cached_tokens": 1024,
+        "seconds": 5.64
+      },
+      {
+        "tag": "chunk4#1",
+        "prompt_tokens": 1135,
+        "completion_tokens": 709,
+        "cached_tokens": 0,
+        "seconds": 6.25
+      },
+      {
+        "tag": "chunk1#1",
+        "prompt_tokens": 1229,
+        "completion_tokens": 776,
+        "cached_tokens": 1024,
+        "seconds": 6.77
+      },
+      {
+        "tag": "chunk7#1",
+        "prompt_tokens": 1251,
+        "completion_tokens": 745,
+        "cached_tokens": 0,
+        "seconds": 6.77
+      },
+      {
+        "tag": "chunk0#1",
+        "prompt_tokens": 1276,
+        "completion_tokens": 807,
+        "cached_tokens": 1152,
+        "seconds": 7.08
+      },
+      {
+        "tag": "chunk3#1",
+        "prompt_tokens": 1138,
+        "completion_tokens": 640,
+        "cached_tokens": 0,
+        "seconds": 7.13
+      },
+      {
+        "tag": "chunk2#1",
+        "prompt_tokens": 1146,
+        "completion_tokens": 779,
+        "cached_tokens": 1024,
+        "seconds": 7.69
+      },
+      {
+        "tag": "chunk8#1",
+        "prompt_tokens": 1301,
+        "completion_tokens": 267,
+        "cached_tokens": 1152,
+        "seconds": 2.75
+      },
+      {
+        "tag": "chunk9#1",
+        "prompt_tokens": 1131,
+        "completion_tokens": 610,
+        "cached_tokens": 0,
+        "seconds": 5.17
+      },
+      {
+        "tag": "chunk16#1",
+        "prompt_tokens": 603,
+        "completion_tokens": 290,
+        "cached_tokens": 0,
+        "seconds": 3.12
+      },
+      {
+        "tag": "chunk7#2",
+        "prompt_tokens": 482,
+        "completion_tokens": 104,
+        "cached_tokens": 0,
+        "seconds": 1.66
+      },
+      {
+        "tag": "chunk14#1",
+        "prompt_tokens": 1176,
+        "completion_tokens": 704,
+        "cached_tokens": 1024,
+        "seconds": 6.71
+      },
+      {
+        "tag": "chunk12#1",
+        "prompt_tokens": 1140,
+        "completion_tokens": 718,
+        "cached_tokens": 0,
+        "seconds": 7.36
+      },
+      {
+        "tag": "chunk6#2",
+        "prompt_tokens": 783,
+        "completion_tokens": 300,
+        "cached_tokens": 0,
+        "seconds": 3.47
+      },
+      {
+        "tag": "chunk10#1",
+        "prompt_tokens": 1249,
+        "completion_tokens": 775,
+        "cached_tokens": 1024,
+        "seconds": 8.51
+      },
+      {
+        "tag": "chunk16:verify",
+        "prompt_tokens": 441,
+        "completion_tokens": 33,
+        "cached_tokens": 0,
+        "seconds": 0.88
+      },
+      {
+        "tag": "chunk13#1",
+        "prompt_tokens": 1229,
+        "completion_tokens": 795,
+        "cached_tokens": 1024,
+        "seconds": 8.16
+      },
+      {
+        "tag": "chunk8:verify",
+        "prompt_tokens": 754,
+        "completion_tokens": 59,
+        "cached_tokens": 0,
+        "seconds": 1.13
+      },
+      {
+        "tag": "chunk11#1",
+        "prompt_tokens": 1248,
+        "completion_tokens": 762,
+        "cached_tokens": 1024,
+        "seconds": 8.91
+      },
+      {
+        "tag": "chunk14#2",
+        "prompt_tokens": 492,
+        "completion_tokens": 103,
+        "cached_tokens": 0,
+        "seconds": 1.47
+      },
+      {
+        "tag": "chunk16#2",
+        "prompt_tokens": 399,
+        "completion_tokens": 52,
+        "cached_tokens": 0,
+        "seconds": 1.18
+      },
+      {
+        "tag": "chunk0#2",
+        "prompt_tokens": 827,
+        "completion_tokens": 362,
+        "cached_tokens": 0,
+        "seconds": 3.73
+      },
+      {
+        "tag": "chunk3#2",
+        "prompt_tokens": 929,
+        "completion_tokens": 398,
+        "cached_tokens": 0,
+        "seconds": 3.74
+      },
+      {
+        "tag": "chunk15#1",
+        "prompt_tokens": 1413,
+        "completion_tokens": 1059,
+        "cached_tokens": 1280,
+        "seconds": 11.98
+      },
+      {
+        "tag": "chunk15:verify",
+        "prompt_tokens": 351,
+        "completion_tokens": 20,
+        "cached_tokens": 0,
+        "seconds": 0.87
+      },
+      {
+        "tag": "chunk8#2",
+        "prompt_tokens": 1112,
+        "completion_tokens": 590,
+        "cached_tokens": 0,
+        "seconds": 5.9
+      },
+      {
+        "tag": "chunk15#2",
+        "prompt_tokens": 418,
+        "completion_tokens": 70,
+        "cached_tokens": 0,
+        "seconds": 1.59
+      },
+      {
+        "tag": "chunk8#3",
+        "prompt_tokens": 487,
+        "completion_tokens": 131,
+        "cached_tokens": 0,
+        "seconds": 2.58
+      },
+      {
+        "tag": "sweep0#1",
+        "prompt_tokens": 393,
+        "completion_tokens": 55,
+        "cached_tokens": 0,
+        "seconds": 1.1
+      },
+      {
+        "tag": "sweep0:verify",
+        "prompt_tokens": 339,
+        "completion_tokens": 20,
+        "cached_tokens": 0,
+        "seconds": 0.96
+      }
+    ]
+  }
+}
