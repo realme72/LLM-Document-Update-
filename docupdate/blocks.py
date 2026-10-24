@@ -124,3 +124,22 @@ def join_blocks(blocks: list[Block], replacements: dict[str, str | None]) -> str
         else:
             out.append(b.text)
     return "\n\n".join(out) + "\n"
+
+
+OUTLINE_WORDS = 25
+# prices, percentages, and Capitalized names that are not sentence-initial
+TERM_RE = re.compile(r"[$€£₹]\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s?%|(?<=[a-z,;] )[A-Z][A-Za-z0-9-]+")
+
+
+def render_outline(blocks: list[Block]) -> str:
+    """Compressed planner view (DOCUPDATE_PLANNER=outline): headings and tables in full; other blocks as
+    their opening words plus the values and names they mention, so fact-bearing blocks stay findable."""
+    out = []
+    for b in blocks:
+        if b.kind in ("heading", "table") or b.words <= OUTLINE_WORDS:
+            out.append(f"[{b.id}] {b.text}")
+            continue
+        terms = list(dict.fromkeys(TERM_RE.findall(b.text)))[:12]
+        out.append(f"[{b.id}] {' '.join(b.text.split()[:OUTLINE_WORDS])} ..."
+                   + (f" (mentions: {', '.join(terms)})" if terms else ""))
+    return "\n\n".join(out)
