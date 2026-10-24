@@ -46,6 +46,8 @@ generated file, then run it:
   --changes-file my_changes.json -o out/invoice
 
 # --md <file> for Markdown/text input · --model gpt-5.4-mini to switch models · --no-verify to skip the reviewer
+# env: DOCUPDATE_CONCURRENCY (calls in flight per document, default 32)
+#      DOCUPDATE_GLOBAL_CONCURRENCY (calls in flight across all documents in the process, default 64)
 ```
 
 Output folder: `updated.md`, `updated.pdf` (when the input was a PDF), `report.json` (per-change
@@ -142,6 +144,17 @@ whole-document style change pays O(doc) output. That cost is unavoidable, but it
 so latency stays flat as the document grows. Unchanged blocks in a style pass can answer `keep`
 instead of repeating their text. Retries re-send only the failing blocks, not the chunk or the
 document.
+
+**Concurrency.** There are two limits. Each document may have up to 32 LLM calls in flight
+(`DOCUPDATE_CONCURRENCY`). That is above the 17 chunks a 10k-word style pass needs, so the
+whole pass runs in one wave and its latency is the slowest single chunk. The whole process
+(API server or batch) is capped at 64 calls in flight (`DOCUPDATE_GLOBAL_CONCURRENCY`), so many
+simultaneous documents queue instead of bursting at the provider. Raising the per-document cap
+from 8 to 32 took the spec example from 22.2s to 13.4s with the same tokens; each figure is a
+single run. For scale: at 64 calls in flight and about 5s per call, one process does about 750
+calls/min. That is roughly 23 spec-example-sized documents per minute (32 calls each), or about 150
+targeted-only documents per minute (5 calls each). This key's OpenAI limits (30k requests/min,
+150M tokens/min) are far above that, so the global cap is the dial to turn.
 
 **Model choice.** `gpt-4.1-mini` is a non-reasoning model, so there are no hidden reasoning tokens
 and latency is predictable. It supports strict JSON-schema outputs and long context, and it is
