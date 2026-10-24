@@ -133,3 +133,17 @@ def check_percent_change(change: str, orig: Block, new: str | None) -> list[str]
         return [f"{orig.id}: new amounts {bad} are not a {phrase} of any original amount "
                 f"(expected values from {sorted(expected)})."]
     return []
+
+
+def percent_proven(change: str, orig: Block, new: str | None) -> bool:
+    """True if the edit is exactly 'every amount scaled by the change's factor, nothing else touched'.
+    Code can prove that on its own, so the LLM reviewer is not needed."""
+    f = _pct_factor(change)
+    if not f or new is None:
+        return False
+
+    def scaled(m):
+        v = float(m.group(1).replace(",", ""))
+        return m.group(0)[0] + f"{round(v * f[0], 2):,.2f}"
+
+    return MONEY_RE.sub(scaled, orig.text).strip() == new.strip()
