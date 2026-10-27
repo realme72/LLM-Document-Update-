@@ -48,6 +48,8 @@ generated file, then run it:
 # --md <file> for Markdown/text input · --model gpt-5.4-mini to switch models · --no-verify to skip the reviewer
 # env: DOCUPDATE_CONCURRENCY (calls in flight per document, default 32)
 #      DOCUPDATE_GLOBAL_CONCURRENCY (calls in flight across all documents in the process, default 64)
+#      DOCUPDATE_STYLE_MODEL (model for style-only chunks; default = main model)
+#      DOCUPDATE_PLANNER=outline (compressed planner input; default full - see Optimizations)
 ```
 
 Output folder: `updated.md`, `updated.pdf` (when the input was a PDF), `report.json` (per-change
@@ -78,7 +80,7 @@ If you get `address already in use`, another app holds the port: pick another wi
 ### 5. Tests
 
 ```bash
-.venv/bin/python tests/run_tests.py            # 5 offline fault-injection tests + 4 live tests (~1-2 min, OpenAI calls)
+.venv/bin/python tests/run_tests.py            # 9 offline fault-injection tests + 4 live tests (~1 min, OpenAI calls)
 .venv/bin/python tests/run_tests.py --offline  # offline only: scripted fake LLM, no API key or cost
 ```
 
@@ -90,13 +92,17 @@ Each test prints PASS/FAIL with time, number of calls and tokens. Results are wr
 ```
 PDF ──pymupdf4llm──▶ Markdown ──split──▶ blocks [B1..Bn] (id, kind, section path)
                                             │
-   1. PLAN    1 call, whole doc in, tiny JSON out: change -> block ids | "global" | "not_found"
-   2. EDIT    parallel calls, each sees ONLY its blocks, returns {id, replace|delete|keep, text}
-   3. CHECK   deterministic validators per block
-   4. VERIFY  small LLM review of before/after for targeted changes (+ deterministic arithmetic check)
-   5. RETRY   only the failed blocks, with the validator errors as feedback (max 2 retries)
-   6. SWEEP   values/terms a change replaced ("$79", "Pro") still present elsewhere -> follow-up edit
-   7. APPLY   code splices accepted edits back in; drops headings whose whole section was deleted
+   1. PLAN       1 call, whole doc in, tiny JSON out: change -> block ids | "global" | "not_found"
+   2. PRE-SWEEP  code: other blocks stating the same prices/placeholders join the change (optional)
+   3. EDIT       parallel calls, each sees ONLY its blocks, returns {id, replace|delete|keep, text}
+                 (small docs: one call for all targeted changes)
+   4. CHECK      deterministic validators per block
+   5. VERIFY     one LLM review per job of the touched blocks' before/after; skipped when code
+                 already proved the change (exact percentage scaling)
+   6. RETRY      only the failed blocks, with the validator errors as feedback (max 2 retries)
+   7. SWEEP      safety net: values/terms a change replaced ("$79", "Pro") still present elsewhere
+                 -> one follow-up edit call
+   8. APPLY      code splices accepted edits back in; drops headings whose whole section was deleted
 ```
 
 **Splitting (no LLM).** The PDF is converted to Markdown with PyMuPDF4LLM, which infers headings
@@ -112,11 +118,16 @@ The model is told to be exhaustive: facts restated in the FAQ or Summary must be
 Two deterministic safety nets cover planner misses:
 - **Heading repair.** If the planner picks a heading, the block after it is added too. We saw
   `gpt-4.1-mini` pick "## Summary" when it meant the summary paragraph.
-- **Stale-value sweep.** After a targeted edit, code diffs the before/after money and percent
-  values (`$79` → `$86.90`), plus any terms the change names (`'Pro'`). It then greps the rest of
-  the document for the old values. Each hit gets a small follow-up edit, which may answer `keep`
-  if the match is unrelated (e.g. "Pro tip"). In testing this caught the FAQ's `$79` and the
-  `Pro` in "everything in Pro", both of which the planner missed.
+- **Pre-sweep (before editing).** Code collects the prices, percentages and `[placeholders]` in
+  the planner's blocks and finds every other block stating them. Those blocks join the change as
+  *optional* blocks in the first edit round, listed separately in the prompt ("also check: these
+  mention the same values"). If an optional block keeps failing, it stays unchanged and does not
+  roll back the change. This catches the FAQ's `$79` without a second round.
+- **Sweep (after editing, safety net).** Code diffs before/after values plus terms the change names
+  (`'Pro'` disappearing), then greps the rest of the document. Remaining hits get one follow-up
+  edit call, which may answer `keep` (e.g. "Pro tip"). Plain names are left to this step on
+  purpose: they are ambiguous, so pre-sweeping 'Pro' pulled 20 "Pro tip" blocks into round 1 and
+  cost about 30% more tokens. In testing this caught "everything in Pro", which the planner missed.
 
 **Why this shape — token and latency scaling.** Output tokens are the expensive, slow part
 (roughly 50–100 tok/s). A naive full rewrite has output O(doc): about 14k tokens and minutes per
@@ -130,14 +141,16 @@ Two deterministic safety nets cover planner misses:
 
 Measured on the 10.5k-word sample (`gpt-4.1-mini`):
 
-| run | calls | in | out | time |
-|---|---|---|---|---|
-| pricing +10% + remove legacy paragraph | 5 | 15.9k | **0.57k** | 5.8 s |
-| rename "Pro" → "Growth" everywhere | 5 | 22.5k | 3.1k | ~33 s* |
-| spec example (pricing + legacy + formal tone) | 32 | 41.5k | 14.2k | 29.5 s |
-| change that matches nothing | 1 | 13.3k | 29 | 1.2 s |
+| run | calls | in | out | time | first version |
+|---|---|---|---|---|---|
+| pricing +10% + remove legacy paragraph | 4 | 14.9k | **0.48k** | 4.5 s | 5 calls, 5.8 s |
+| rename "Pro" → "Growth" everywhere | 5 | 22.6k | 0.96k | 8.8 s | 5 calls, ~33 s |
+| spec example (pricing + legacy + formal tone) | 29 | 40.2k | 13.5k | **10.0 s** | 32 calls, 29.5 s |
+| change that matches nothing | 1 | 13.3k | 29 | 1.0 s | same |
+| 1-page invoice, 10 targeted changes | 3 | 3.7k | 0.82k | 6.3 s | 17 calls, 7.3k in |
 
-\*The sweep follow-up runs after the main edits, so it adds a sequential round.
+"First version" is before the optimization pass described below. Each figure is a single run, so
+latency varies by a few seconds between runs.
 
 Targeted changes cost about 1× the document as input and almost nothing as output. Only a
 whole-document style change pays O(doc) output. That cost is unavoidable, but it is parallelized,
@@ -158,7 +171,8 @@ targeted-only documents per minute (5 calls each). This key's OpenAI limits (30k
 
 **Model choice.** `gpt-4.1-mini` is a non-reasoning model, so there are no hidden reasoning tokens
 and latency is predictable. It supports strict JSON-schema outputs and long context, and it is
-cheap. Override with `DOCUPDATE_MODEL` or `--model`. Arithmetic is not left to the model at all:
+cheap. Override with `DOCUPDATE_MODEL` or `--model`; gpt-5 models are called with reasoning set to
+none or minimal. Cheaper models for the style chunks were measured and rejected (see Optimizations). Arithmetic is not left to the model at all:
 for "N% increase/decrease" changes, code computes the new amounts and passes them in as a lookup
 table. See the "switches" section below for why.
 
@@ -179,22 +193,29 @@ table. See the "switches" section below for why.
      model "helpfully" editing prices during a tone pass, or merging repeated sentences.
    - Arithmetic: for percentage changes, every new money value must equal an old value × factor,
      to the cent.
-3. **LLM verifier** for targeted changes only. It sees only the before/after of the touched
-   blocks, so its cost is O(edit).
+3. **LLM verifier** for targeted changes only: one call per job, returning a verdict per change.
+   It sees only the before/after of the touched blocks, so its cost is O(edit). It is skipped when
+   code has already proved the edit: exact percentage scaling with nothing else touched.
 4. **Granular retry and atomicity.** A style-only block is accepted on its own as soon as it
-   passes. All blocks of a targeted change are accepted all-or-nothing, *across* chunks. If any
+   passes. All blocks of a targeted change are accepted all-or-nothing, *across* chunks. Changes
+   that share no blocks are independent units even inside one call, so on a small document where
+   all changes share one call, one rejected change does not block the others. If any
    block of "raise prices 10%" fails after retries, every block of that change reverts, so the
    document never contains half a price change. One exception, on the last attempt only: if the
    only blocks still failing are **headings**, they are dropped from the change and kept
    unchanged, and the rest is judged on its own. The planner sometimes points at "## Summary"
    when it means the paragraph under it, and the editor then keeps pushing content into the
-   heading. Dropped headings are listed in the report (`dropped_headings`).
+   heading. The same applies to pre-swept optional blocks. Dropped blocks are listed in the report
+   (`dropped_blocks`).
 5. **Graceful degradation.** Nothing raises. Each change is reported as `applied`, `partial` (a
    style pass where some blocks kept their original text, listed in the report), `failed` (with
    the last errors), or `not_found`. The batch moves on to the next document. Transport errors
-   (429/5xx/timeouts) are retried by the OpenAI client (`max_retries=3`).
+   (429/5xx/timeouts) are retried by the OpenAI client (`max_retries=3`). An API error that
+   outlasts those retries (an outage, or a deprecated model) is treated like a bad output: it goes
+   through the same retry and report path and is listed in `usage.api_errors`. It never crashes
+   the document. An earlier version did crash when a model returned 404.
 
-## Test cases run (`tests/run_tests.py`, 9/9 pass)
+## Test cases run (`tests/run_tests.py`, 13/13 pass)
 
 Live, on `samples/nimbus_guide.pdf`, a generated 10.5k-word casual product guide with planted
 traps: a pricing table, the Pro price repeated in the FAQ and Summary, one legacy-API paragraph
@@ -220,7 +241,21 @@ Offline fault injection, using a scripted fake LLM:
 8. The planner selects a heading plus its paragraph, and the editor keeps stuffing content into
    the heading. After retries the heading is dropped and kept unchanged, and the paragraph edit
    applies.
-9. **Known false pass** (below).
+9. Pre-sweep: the planner selects only the pricing table. The FAQ (same `$79`) joins in round 1
+   and is updated. An optional block that always comes back broken is kept unchanged without
+   rolling back the change.
+10. Small document: two independent changes share one edit call. The reviewer rejects one, which
+    fails alone while the other applies.
+11. A percentage change that code can prove exactly: applied with no reviewer call.
+12. OpenAI unreachable (the real wrapper with a client that always raises): the change is
+    `failed`, the original is returned, errors are reported, and nothing crashes.
+13. **Known false pass** (below).
+
+Also run once on a real 1-page invoice-agreement PDF (`examples/invoice_input.json`) with 10
+changes: parties, dates, invoice number, amounts, an installment schedule, payment terms and
+governing law. All 10 applied. Two gaps it exposed are not caught by any check: section numbers
+are not renumbered after a section is removed (4 → 6), and PDF extraction merges the two
+signature lines into one paragraph.
 
 ## Known false pass: wrong change that passes every check
 
@@ -293,6 +328,37 @@ planner misses a block that says "about eighty dollars" or "our mid tier", nothi
    editor stuffed pricing text into it on all three attempts. The rollback was safe but the
    change was lost. Headings are now dropped from a targeted change if they are the only blocks
    still failing on the last attempt.
+7. **Optimization pass.** See the next section. Two things it surfaced changed the design: the
+   pre-sweep had to stay limited to exact values (names doubled the work), and the nano
+   experiment exposed that an API error crashed the run.
+
+## Optimizations (after the first working version)
+
+Each one was measured with the full test suite. Opt-in ones stay off by default because they lost
+on accuracy or cost overall.
+
+| Size | Optimization | Effect (measured) | Default |
+|---|---|---|---|
+| small | Per-document concurrency 8 → 32, plus a process-wide cap of 64 | Spec example 22s → 13s (one wave of 17 chunks instead of three) | on |
+| small | Code blocks not sent through the style pass | Fewer tokens and fewer chances to fail validation | on |
+| small | Reviewer skipped when code proves the change (exact % scaling) | 1 fewer call per proven change | on |
+| medium | Per-change units inside a job, plus one review call per job | Lets changes share calls safely | on |
+| medium | Small docs (≤ 2,000 words): one edit call for all targeted changes | Invoice: 17 calls / 7.3k in → **3 calls / 3.7k in** | on |
+| medium | Pre-sweep exact values into round 1 (optional blocks) | Removes the sequential sweep round for value changes; rename ~30s → ~9s | on |
+| big | Cheaper model for style chunks (`DOCUPDATE_STYLE_MODEL`) | `gpt-4.1-nano`: deprecated (404). `gpt-5.4-nano` / `gpt-5-nano`: more validation failures and retries, so 35–40 calls, 49k in, 17–19s and the tone change `partial`. **Worse overall.** | off |
+| big | Outline planner (`DOCUPDATE_PLANNER=outline`): headings and tables in full, other blocks as their opening 25 words plus the values and names they mention | Planner input 13.3k → 6.0k (−55%), suite 12/12. A probe of 4 mid-paragraph details found 3/4 (missed "exponential backoff"); with a full-document fallback for `not_found` changes it found 4/4, but cost 19.3k planner tokens on that probe. | off |
+
+Why the outline planner stays off: the spec grades accuracy first and tokens "within an order of
+magnitude". A 2× saving on one stage doesn't justify the recall risk. The fallback still can't
+catch a *partial* miss (some blocks found, one missed). It is the right default only once a
+labelled eval set shows its recall holds.
+
+Not done:
+- **Batch API.** The pipeline is multi-round (plan → edit → review → retry), and each Batch round
+  can take up to 24h. It fits only as a "plan + first edit pass" batch with synchronous repair of
+  failures. That's a different execution mode.
+- **Starting the style pass before the planner returns.** It would save about 1–2s, but blocks
+  touched by both a style change and a targeted change would then need sequencing.
 
 ## What I'd do differently with more time
 
@@ -309,22 +375,12 @@ planner misses a block that says "about eighty dollars" or "our mid tier", nothi
   fonts and images are lost. Use a layout-preserving redaction-and-insert approach, or emit DOCX.
 - **Batch mode:** run many documents with a global concurrency and token budget, using OpenAI's
   Batch API (50% cheaper, latency-insensitive). Cache the planner's static prefix.
-- **Fewer calls for small documents.** Every edit and review call carries a fixed system prompt
-  (about 300 and 150 tokens respectively), so on short documents that overhead dominates. In a
-  run on a 1-page invoice (about 450 tokens) with 10 changes, the changes formed 8 independent
-  groups, giving 17 calls and 7.3k input tokens: about 16× the document, nearly all of it prompt
-  overhead. Overhead grows with the number of changes, not with document size. On the
-  10.5k-word sample, input was about 1.2× the document. Two fixes:
-  - Below a size threshold, merge all targeted groups into **one edit call**. Per-change
-    validation and all-or-nothing acceptance are kept by validating each group's blocks
-    separately inside the combined response. Saves about 2.5k tokens on that run.
-  - Review all groups in **one reviewer call** that returns a verdict per change. Saves about 2k.
-
-  Together these bring that run to about 2.5–3k input tokens. The cost is giving up some
-  parallelism, which is negligible for small documents, plus a larger blast radius when a
-  combined response is malformed: a bad response would need a retry of more blocks.
-- **Model per stage:** benchmark `gpt-4.1-nano` for style chunks and a stronger model only for
-  the planner, since planner recall is the accuracy bottleneck.
+- **An eval set, then revisit the opt-ins.** The outline planner and the cheaper style models
+  were judged on a small suite and one recall probe. A labelled set of documents and changes
+  would show whether either can become the default. A *stronger* planner model is worth testing
+  too, since planner recall is the accuracy bottleneck.
+- **Renumber sections after a deletion,** and keep line breaks inside signature blocks during
+  extraction. Both were found on the invoice.
 
 ## Layout
 
