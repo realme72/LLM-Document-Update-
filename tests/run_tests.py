@@ -33,6 +33,11 @@ results = []
 
 def record(name, res, checks):
     r, u = res["report"], res["report"]["usage"]
+    if u["prompt_tokens"]:  # live test: keep output for inspection
+        slug = re.sub(r"\W+", "_", name).strip("_")
+        os.makedirs("out/tests", exist_ok=True)
+        open(f"out/tests/{slug}.md", "w").write(res["updatedDocument"])
+        json.dump(r, open(f"out/tests/{slug}.report.json", "w"), indent=2)
     ok = all(v for v in checks.values())
     results.append({"test": name, "pass": ok, "seconds": r["seconds"], "calls": u["calls"],
                     "in_tokens": u["prompt_tokens"], "out_tokens": u["completion_tokens"],
@@ -101,9 +106,9 @@ class FakeLLM(LLM):
         self.model, self.calls, self.script = "fake", [], script
         self.sem = asyncio.Semaphore(8)
 
-    async def chat_json(self, tag, messages, schema):
+    async def chat_json(self, tag, messages, schema, model=None):
         out = self.script(tag, messages[-1]["content"])
-        self.calls.append({"tag": tag, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0, "seconds": 0})
+        self.calls.append({"tag": tag, "user": messages[-1]["content"], "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0, "seconds": 0})
         return out
 
 
@@ -191,11 +196,102 @@ async def offline():
     c = res["report"]["changes"][0]
     record("offline: heading stuffed, dropped", res, {
         "applied": c["status"] == "applied",
-        "heading dropped + kept": c.get("dropped_headings") == [head.id] and head.text in res["updatedDocument"],
+        "heading dropped + kept": c.get("dropped_blocks") == [head.id] and head.text in res["updatedDocument"],
         "paragraph edited": "30 requests per minute" in res["updatedDocument"],
     })
 
-    # 5. KNOWN BLIND SPOT: a style edit that silently flips meaning passes every check.
+    # 5. Pre-sweep: the planner misses the FAQ, but the FAQ states the same price, so it joins the change
+    #    as an optional block in the FIRST round. An optional block that keeps failing is kept unchanged
+    #    and does not sink the change.
+    table = next(b for b in blocks if b.kind == "table" and "$79" in b.text)
+    faq = next(b for b in blocks if "How much does the Pro plan cost" in b.text)
+    summary = next(b for b in blocks if "most teams land on Pro" in b.text)
+
+    def presweep_script(tag, user):
+        if tag.startswith("plan"):
+            return json.dumps({"plan": [{"change_index": 0, "scope": "local", "block_ids": [table.id], "reason": ""}]})
+        if ":verify" in tag:
+            return json.dumps({"verdicts": [{"change_index": 0, "ok": True, "problem": ""}]})
+        out = []
+        for i in ids_in(user):
+            b = next(x for x in blocks if x.id == i)
+            if i == summary.id:   # optional block that always comes back broken
+                out.append({"id": i, "action": "replace", "text": "[B1] " + b.text})
+            else:
+                t = b.text.replace("$29", "$31.90").replace("$79", "$86.90").replace("$249", "$273.90").replace("$8 ", "$8.80 ")
+                out.append({"id": i, "action": "replace" if t != b.text else "keep", "text": t if t != b.text else ""})
+        return json.dumps({"edits": out})
+
+    fake = FakeLLM(presweep_script)
+    res = await update_document(SOURCE, [PRICING], fake)
+    c = res["report"]["changes"][0]
+    record("offline: pre-sweep + optional block", res, {
+        "applied": c["status"] == "applied",
+        "FAQ joined in first round": faq.id in c.get("presweep", {}).get("optional_blocks", []),
+        "FAQ updated": "Pro is $86.90 per month" in res["updatedDocument"],
+        "broken optional kept unchanged": summary.text in res["updatedDocument"] and summary.id in c.get("dropped_blocks", []),
+        "FAQ not re-swept (done in round 1)": not any(x["tag"].startswith("sweep") and faq.id in x.get("user", "") for x in fake.calls),
+    })
+
+    # 6. Small document: independent changes share ONE edit call, but stay independent:
+    #    one change failing does not block the other.
+    small = "# Plans\n\nOur Basic plan is $10/month.\n\n## Support\n\nEmail us any time.\n\n## Region\n\nWe host in the EU.\n"
+    sb = split_blocks(small)
+    price_b = next(b for b in sb if "$10" in b.text)
+    region_b = next(b for b in sb if "EU" in b.text)
+
+    def small_script(tag, user):
+        if tag.startswith("plan"):
+            return json.dumps({"plan": [{"change_index": 0, "scope": "local", "block_ids": [price_b.id], "reason": ""},
+                                        {"change_index": 1, "scope": "local", "block_ids": [region_b.id], "reason": ""}]})
+        if ":verify" in tag:
+            return json.dumps({"verdicts": [{"change_index": 1, "ok": False, "problem": "wrong region"}]})
+        return json.dumps({"edits": [{"id": i, "action": "replace",
+                                      "text": "Our Basic plan is $11.00/month." if i == price_b.id else "We host in the US."}
+                                     for i in ids_in(user)]})
+
+    fake = FakeLLM(small_script)
+    res = await update_document(small, ["Raise prices by 10% increase", "Move hosting to Canada"], fake)
+    edit_calls = [x["tag"] for x in fake.calls if x["tag"].startswith("group") and ":verify" not in x["tag"]]
+    st = [c["status"] for c in res["report"]["changes"]]
+    record("offline: small doc, one call, independent", res, {
+        "one edit call per round": all(t.startswith("group0#") for t in edit_calls) and len({t.split("#")[1] for t in edit_calls}) == len(edit_calls),
+        "price change applied": st[0] == "applied" and "$11.00" in res["updatedDocument"],
+        "rejected change failed alone": st[1] == "failed" and "We host in the EU." in res["updatedDocument"],
+    })
+
+    # 7. Reviewer skipped when code proves a percentage change (exact scaling, nothing else touched)
+    def proven_script(tag, user):
+        if tag.startswith("plan"):
+            return json.dumps({"plan": [{"change_index": 0, "scope": "local", "block_ids": [price_b.id], "reason": ""}]})
+        if ":verify" in tag:
+            raise AssertionError("reviewer should not be called")
+        return json.dumps({"edits": [{"id": i, "action": "replace", "text": "Our Basic plan is $11.00/month."} for i in ids_in(user)]})
+
+    fake = FakeLLM(proven_script)
+    res = await update_document(small, ["Apply a 10% increase to all prices"], fake)
+    record("offline: proven change skips reviewer", res, {
+        "applied": res["report"]["changes"][0]["status"] == "applied",
+        "no reviewer call": not any(":verify" in x["tag"] for x in fake.calls),
+    })
+
+    # 8. OpenAI keeps erroring (outage, deprecated model): real LLM wrapper, client always raises ->
+    #    every change reported failed, original returned, no exception
+    import openai
+
+    async def always_down(**kw):
+        raise openai.OpenAIError("connection reset (simulated outage)")
+
+    down = LLM()
+    down.client.chat.completions.create = always_down
+    res = await update_document(SOURCE, [LEGACY], down)
+    record("offline: API down, no crash", res, {
+        "failed, not crashed": res["report"]["changes"][0]["status"] == "failed",
+        "doc unchanged": res["updatedDocument"] == SOURCE,
+        "errors reported": bool(res["report"]["usage"]["api_errors"]),
+    })
+
+    # 9. KNOWN BLIND SPOT: a style edit that silently flips meaning passes every check.
     flipped = ("The legacy v1 API remains fully supported, and new integrations may be built on it with confidence. "
                "It uses XML responses, does not support pagination, and is limited to 60 requests per minute. "
                "We are planning to retire it in 2027; customers on v1 may migrate to v2 at their convenience. "
