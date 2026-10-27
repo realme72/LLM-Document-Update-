@@ -13,7 +13,7 @@ import asyncio
 import os
 import time
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 _global_sems: dict[int, asyncio.Semaphore] = {}
 
@@ -35,19 +35,35 @@ class LLM:
         self.sem = asyncio.Semaphore(max_concurrency or int(os.getenv("DOCUPDATE_CONCURRENCY", "32")))
         self.calls: list[dict] = []
 
-    async def chat_json(self, tag: str, messages: list[dict], schema: dict) -> str:
-        """Returns the raw JSON string; parsing/validation is the caller's job."""
+    async def chat_json(self, tag: str, messages: list[dict], schema: dict, model: str | None = None) -> str:
+        """Returns the raw JSON string; parsing/validation is the caller's job. `model` overrides per call."""
+        model = model or self.model
+        # gpt-5 family: reasoning models, temperature is fixed; keep hidden reasoning to the minimum
+        if model.startswith("gpt-5."):
+            params = {"reasoning_effort": "none"}       # gpt-5.1+ can switch reasoning off entirely
+        elif model.startswith("gpt-5"):
+            params = {"reasoning_effort": "minimal"}
+        else:
+            params = {"temperature": 0}
         async with self.sem, _global_sem():
             t0 = time.perf_counter()
-            r = await self.client.chat.completions.create(
-                model=self.model,
-                temperature=0,
-                messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "out", "schema": schema, "strict": True}},
-            )
+            try:
+                r = await self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format={"type": "json_schema", "json_schema": {"name": "out", "schema": schema, "strict": True}},
+                    **params,
+                )
+            except OpenAIError as e:
+                # still failing after the client's own retries: treat it like a bad output (retry/report
+                # path) instead of crashing the whole document
+                self.calls.append({"tag": tag, "model": model, "prompt_tokens": 0, "completion_tokens": 0,
+                                   "cached_tokens": 0, "seconds": round(time.perf_counter() - t0, 2),
+                                   "error": f"{type(e).__name__}: {str(e)[:200]}"})
+                return ""
         u = r.usage
         cached = getattr(getattr(u, "prompt_tokens_details", None), "cached_tokens", 0) or 0
-        self.calls.append({"tag": tag, "prompt_tokens": u.prompt_tokens, "completion_tokens": u.completion_tokens,
+        self.calls.append({"tag": tag, "model": model, "prompt_tokens": u.prompt_tokens, "completion_tokens": u.completion_tokens,
                            "cached_tokens": cached, "seconds": round(time.perf_counter() - t0, 2)})
         return r.choices[0].message.content or ""
 
@@ -58,5 +74,6 @@ class LLM:
             "prompt_tokens": sum(c["prompt_tokens"] for c in self.calls),
             "completion_tokens": sum(c["completion_tokens"] for c in self.calls),
             "cached_tokens": sum(c["cached_tokens"] for c in self.calls),
+            "api_errors": [c["error"] for c in self.calls if "error" in c],
             "per_call": self.calls,
         }
