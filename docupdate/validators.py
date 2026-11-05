@@ -43,6 +43,14 @@ def _nums(text: str) -> Counter:
     return Counter(n.replace(",", "") for n in NUM_RE.findall(text))
 
 
+# a tone rewrite keeps polarity: "doesn't" -> "does not" is fine, "shouldn't build on it" -> "may build on it" is not
+NEG_RE = re.compile(r"\b(?:not|never|no|none|nor|neither|nothing|nobody|cannot|without)\b|n't\b", re.I)
+
+
+def _negations(text: str) -> int:
+    return len(NEG_RE.findall(text.replace("’", "'")))
+
+
 def validate_block_edit(orig: Block, action: str, text: str, *, local: bool) -> list[str]:
     """local=True if a targeted (content) change applies to this block; False if only
     a global style change does, in which case facts must be preserved exactly."""
@@ -83,6 +91,9 @@ def validate_block_edit(orig: Block, action: str, text: str, *, local: bool) -> 
             lost = sorted((_nums(orig.text) - _nums(t)).elements())
             added = sorted((_nums(t) - _nums(orig.text)).elements())
             errs.append(f"{p} style-only change altered numbers (removed {lost}, added {added}); keep every number exactly.")
+        if _negations(orig.text) != _negations(t):
+            errs.append(f"{p} negations changed from {_negations(orig.text)} to {_negations(t)} (not/never/no/n't...); "
+                        "a style change must not flip meaning. Keep each negative statement negative and each positive one positive.")
         if orig.words >= 8 and not 0.5 <= len(t.split()) / orig.words <= 2.0:
             errs.append(f"{p} length changed from {orig.words} to {len(t.split())} words; a style change should not add or drop content.")
     return errs
