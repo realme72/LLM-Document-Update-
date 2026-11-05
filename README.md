@@ -82,3 +82,6 @@ If you see `address already in use`, choose another port with `--port`.
 | `DOCUPDATE_MODEL` | `gpt-4.1-mini` | Model used for all calls |
 | `DOCUPDATE_CONCURRENCY` | `32` | Max LLM calls in flight per document |
 | `DOCUPDATE_GLOBAL_CONCURRENCY` | `64` | Max LLM calls in flight across the process |
+| `DOCUPDATE_MAX_PDF_MB` | `20` | API: largest PDF upload accepted |
+| `DOCUPDATE_MAX_CHARS` | `500000` | API: longest document text accepted (~80k words) |
+| `DOCUPDATE_MAX_CHANGES` | `50` | API: most changes per request |
