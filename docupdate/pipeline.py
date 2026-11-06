@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 
 from .blocks import Block, heading_level, join_blocks, render_for_llm, render_outline, split_blocks
 from .llm import LLM
-from .validators import VALUE_RE, changed_values, check_percent_change, percent_hint, percent_proven, parse_json, validate_block_edit, validate_plan
+from .validators import VALUE_RE, changed_values, check_percent_change, percent_hint, percent_proven, parse_json, polarity_suspect, validate_block_edit, validate_plan
 
 MAX_RETRIES = 2
 GLOBAL_CHUNK_WORDS = 700
@@ -87,6 +87,18 @@ VERIFY_SCHEMA = {
     "properties": {"verdicts": {"type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["change_index", "ok", "problem"],
         "properties": {"change_index": {"type": "integer"}, "ok": {"type": "boolean"}, "problem": {"type": "string"}},
+    }}},
+}
+
+POLARITY_SYSTEM = """A style rewrite must keep the meaning of each block exactly. For each BEFORE/AFTER pair, decide whether the AFTER says the same thing.
+same_meaning = false if any statement was reversed or weakened/strengthened: a prohibition became a permission (or the reverse), something unsupported became supported, a warning or urgency was dropped, a "not"/"never" was added or removed in a way that changes a claim.
+Dropping casual idioms ("no worries", "don't sweat it") or rephrasing a negative as an equivalent positive is fine. problem: empty if same_meaning, else one short sentence."""
+
+POLARITY_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["blocks"],
+    "properties": {"blocks": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["id", "same_meaning", "problem"],
+        "properties": {"id": {"type": "string"}, "same_meaning": {"type": "boolean"}, "problem": {"type": "string"}},
     }}},
 }
 
@@ -318,10 +330,15 @@ async def run_job(llm: LLM, job: Job, changes: list[str], verify: bool) -> JobRe
                 return None
             return by_id[i].text if e["action"] == "keep" else e["text"].strip()
 
-        # style-only blocks: accept each good one individually
+        # style-only blocks: accept each good one individually; ones whose negations changed get a meaning review first
+        suspects: dict[str, str] = {}
         for i in pending:
             if not job.is_local(i) and not block_errs[i]:
-                accepted[i] = value(i)
+                v = value(i)
+                if verify and v is not None and polarity_suspect(by_id[i].text, v):
+                    suspects[i] = v
+                else:
+                    accepted[i] = v
 
         # targeted changes: each unit (changes sharing blocks) is all-or-nothing
         ready: list[tuple[set[int], dict[str, str | None]]] = []
@@ -343,7 +360,13 @@ async def run_job(llm: LLM, job: Job, changes: list[str], verify: bool) -> JobRe
                     ready.append((cs, cand))
 
         to_review = [u for u in ready if not _proven(job, changes, u[0], u[1], by_id)] if verify else []
-        rejected = await _verify(llm, job, changes, to_review, by_id)
+        rejected, flipped = await asyncio.gather(_verify(llm, job, changes, to_review, by_id),
+                                                 _review_polarity(llm, job, suspects, by_id))
+        for i, v in suspects.items():
+            if i in flipped:
+                block_errs[i] = [f"{i}: the rewrite changed the meaning ({flipped[i]}); change only the tone."]
+            else:
+                accepted[i] = v
         for cs, cand in ready:
             if not any(ci in rejected for ci in cs):
                 accepted.update(cand)
@@ -379,6 +402,19 @@ async def _verify(llm: LLM, job: Job, changes: list[str], units: list[tuple[set[
     if parsed is None:
         return {}  # unreadable review is not evidence of a bad edit; deterministic checks already passed
     return {v["change_index"]: v["problem"] for v in parsed["verdicts"] if not v["ok"] and v["change_index"] in cs}
+
+
+async def _review_polarity(llm: LLM, job: Job, suspects: dict[str, str], by_id: dict[str, Block]) -> dict[str, str]:
+    """One call for the style-only blocks whose negation count changed. Returns {block_id: problem} for flips."""
+    if not suspects:
+        return {}
+    pairs = [f"[{i}]\nBEFORE:\n{by_id[i].text}\nAFTER:\n{v}" for i, v in suspects.items()]
+    raw = await llm.chat_json(f"{job.name}:polarity", [{"role": "system", "content": POLARITY_SYSTEM},
+                                                       {"role": "user", "content": "\n\n".join(pairs)}], POLARITY_SCHEMA)
+    parsed, _ = parse_json(raw)
+    if parsed is None:
+        return {}  # same policy as _verify: an unreadable review is not evidence; deterministic checks passed
+    return {b["id"]: b["problem"] or "meaning changed" for b in parsed.get("blocks", []) if not b["same_meaning"] and b["id"] in suspects}
 
 
 async def _sweep_stale_values(llm, blocks, plan, replacements, changes, verify) -> list[JobResult]:
