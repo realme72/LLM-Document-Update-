@@ -1,6 +1,6 @@
 """Turn a PDF into a spec-shaped input file you can edit by hand.
 
-  python tests/pdf_to_input.py samples/invoice-payment-agreement-template.pdf examples/invoice_input.json
+  python tests/pdf_to_input.py samples/payment_agreement.pdf examples/agreement_input.json
   -> {"sourceDocument": "<extracted markdown>", "changes": ["..."]}   (edit "changes", then run the CLI)
 """
 import json

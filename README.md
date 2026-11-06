@@ -37,6 +37,9 @@ Other inputs:
 
 # JSON input: {"sourceDocument": "<full text>", "changes": ["..."]}
 .venv/bin/python -m docupdate.cli --input examples/input.json -o out/run4
+
+# a one-page payment agreement with 12 changes (placeholders, totals, a deletion, one change with no target)
+.venv/bin/python -m docupdate.cli --input examples/agreement_input.json -o out/agreement
 ```
 
 To make a JSON input from a PDF, run
@@ -60,8 +63,8 @@ Open http://127.0.0.1:8001/docs to try it in the browser.
 - `POST /update/pdf`: form upload with `file` (PDF) and `changes` (a JSON list, or one change per line)
 
 ```bash
-curl -X POST localhost:8001/update/pdf -F file=@samples/invoice-payment-agreement-template.pdf \
-  -F 'changes=["Replace [State] in the governing law clause with California."]'
+curl -X POST localhost:8001/update/pdf -F file=@samples/payment_agreement.pdf \
+  -F 'changes=["The agreement is governed by the laws of the State of New York."]'
 ```
 
 If you see `address already in use`, choose another port with `--port`.
@@ -73,7 +76,8 @@ If you see `address already in use`, choose another port with `--port`.
 .venv/bin/python tests/run_tests.py             # also runs live tests (makes OpenAI calls)
 ```
 
-`tests/make_sample_doc.py` rebuilds the ~10.5k-word sample in `samples/`.
+`tests/make_sample_doc.py` rebuilds the ~10.5k-word guide and `tests/make_invoice_sample.py` the payment
+agreement in `samples/`.
 
 ## Configuration (optional, in `.env`)
 
