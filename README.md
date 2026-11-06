@@ -5,7 +5,7 @@ sections. Built-in validation and rollback mean a bad edit is reported instead o
 
 Python, FastAPI, OpenAI API (`gpt-4.1-mini` by default).
 
-## 1. Install (Python 3.10+)
+## 1. Install (Python 3.11+)
 
 ```bash
 git clone https://github.com/realme72/LLM-Document-Update-.git
