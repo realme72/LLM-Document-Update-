@@ -52,6 +52,9 @@ def pdf_to_markdown(path: str) -> str:
             md = md.rstrip() + " " + page.lstrip()
         else:
             md = (md + "\n\n" + page) if md else page
+    # a rule drawn under a line (e.g. a table's top border) is reported as underlining; the HTML tags would
+    # leak into the edited document
+    md = re.sub(r"</?u>", "", md)
     return md.strip() + "\n"
 
 
