@@ -291,24 +291,43 @@ async def offline():
         "errors reported": bool(res["report"]["usage"]["api_errors"]),
     })
 
-    # 9. KNOWN BLIND SPOT: a style edit that silently flips meaning passes every check.
+    # 9. meaning flip that drops a negation ("shouldn't build on it" -> "may be built on it"): the negation count
+    #    changed, so the block goes to the meaning review, which rejects it
     flipped = ("The legacy v1 API remains fully supported, and new integrations may be built on it with confidence. "
                "It uses XML responses, does not support pagination, and is limited to 60 requests per minute. "
                "We are planning to retire it in 2027; customers on v1 may migrate to v2 at their convenience. "
                "Our migration guide is available at https://docs.nimbus.example/api/migrate.")
+    # 10. KNOWN BLIND SPOT: same negation count, but "migrate soon" became "migrate at their convenience"
+    softened = ("The legacy v1 API remains available for older integrations; however, new development should not be built on it. "
+                "It uses XML responses, does not support pagination, and is limited to 60 requests per minute. "
+                "We are planning to retire it in 2027; customers on v1 may migrate to v2 at their convenience. "
+                "Our migration guide is available at https://docs.nimbus.example/api/migrate.")
 
-    def meaning_flip(tag, user):
-        if tag.startswith("plan"):
-            return json.dumps({"plan": [{"change_index": 0, "scope": "global", "block_ids": [], "reason": ""}]})
-        return json.dumps({"edits": [{"id": i, "action": "replace" if i == legacy.id else "keep",
-                                      "text": flipped if i == legacy.id else ""} for i in ids_in(user)]})
+    def rewrite_legacy(new_text):
+        def script(tag, user):
+            if ":polarity" in tag:  # stands in for the meaning reviewer: spots the reversed advice
+                ids = ids_in(user)
+                return json.dumps({"blocks": [{"id": i, "same_meaning": "may be built on it" not in user, "problem": "permission instead of prohibition"} for i in ids]})
+            if tag.startswith("plan"):
+                return json.dumps({"plan": [{"change_index": 0, "scope": "global", "block_ids": [], "reason": ""}]})
+            return json.dumps({"edits": [{"id": i, "action": "replace" if i == legacy.id else "keep",
+                                          "text": new_text if i == legacy.id else ""} for i in ids_in(user)]})
+        return script
 
-    res = await update_document(SOURCE, [FORMAL], FakeLLM(meaning_flip))
-    record("offline: KNOWN FALSE PASS (meaning flip)", res, {
-        "passes all checks (this is the bug)": res["report"]["changes"][0]["status"] == "applied",
-        "wrong text applied": "may be built on it" in res["updatedDocument"],
+    res = await update_document(SOURCE, [FORMAL], FakeLLM(rewrite_legacy(flipped)))
+    record("offline: meaning flip caught (negation)", res, {
+        "not applied": res["report"]["changes"][0]["status"] != "applied",
+        "flipped text rejected": "may be built on it" not in res["updatedDocument"],
+        "original kept": legacy.text in res["updatedDocument"],
+        "meaning review ran": any(":polarity" in c["tag"] for c in res["report"]["usage"]["per_call"]),
     })
-    print("\n   before:", legacy.text[:150], "...\n   after: ", flipped[:150], "...")
+
+    res = await update_document(SOURCE, [FORMAL], FakeLLM(rewrite_legacy(softened)))
+    record("offline: KNOWN FALSE PASS (softened urgency)", res, {
+        "passes all checks (this is the bug)": res["report"]["changes"][0]["status"] == "applied",
+        "wrong text applied": "at their convenience" in res["updatedDocument"],
+    })
+    print("\n   before:", legacy.text[:150], "...\n   after: ", softened[:150], "...")
 
 
 if __name__ == "__main__":
